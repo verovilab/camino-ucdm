@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const bb = Busboy({ headers: Object.fromEntries(req.headers) });
 
   await new Promise<void>((resolve, reject) => {
-    bb.on("file", (_name, file, info) => {
+   bb.on("file", (_name: string, file: any, info: any) => {
       originalName = info.filename || originalName;
       uploadedPath = path.join(tmpDir, `${Date.now()}_${originalName}`);
       const stream = fs.createWriteStream(uploadedPath);
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       stream.on("close", resolve);
       stream.on("error", reject);
     });
-    bb.on("error", reject);
+    bb.on("error", (err: any) => reject(err));
 
     req.body?.pipeTo(
       new WritableStream({
