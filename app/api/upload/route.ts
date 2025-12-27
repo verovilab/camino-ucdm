@@ -7,6 +7,10 @@ import { GoogleGenAI } from "@google/genai";
 
 export const runtime = "nodejs";
 
+export async function GET() {
+  return NextResponse.json({ ok: true, route: "/api/upload" });
+}
+
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization") || "";
   if (auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
@@ -39,12 +43,8 @@ export async function POST(req: NextRequest) {
 
     req.body?.pipeTo(
       new WritableStream({
-        write(chunk) {
-          bb.write(chunk);
-        },
-        close() {
-          bb.end();
-        },
+        write(chunk) { bb.write(chunk); },
+        close() { bb.end(); },
       })
     );
   });
@@ -53,7 +53,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No llegó el PDF" }, { status: 400 });
   }
 
-  // Creamos o reusamos el store
   let storeName = process.env.FILE_SEARCH_STORE_NAME;
   if (!storeName) {
     const store = await ai.fileSearchStores.create({
@@ -62,7 +61,6 @@ export async function POST(req: NextRequest) {
     storeName = store.name;
   }
 
-  // Subimos e indexamos
   let op = await ai.fileSearchStores.uploadToFileSearchStore({
     file: uploadedPath,
     fileSearchStoreName: storeName,
@@ -74,9 +72,7 @@ export async function POST(req: NextRequest) {
     op = await ai.operations.get({ operation: op });
   }
 
-  try {
-    fs.unlinkSync(uploadedPath);
-  } catch {}
+  try { fs.unlinkSync(uploadedPath); } catch {}
 
   return NextResponse.json({
     ok: true,
