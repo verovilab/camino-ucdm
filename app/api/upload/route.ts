@@ -31,47 +31,69 @@ export async function POST(req: NextRequest) {
   const bb = Busboy({ headers: Object.fromEntries(req.headers) });
 
   await new Promise<void>((resolve, reject) => {
-   bb.on("file", (_name: string, file: any, info: any) => {
-      originalName = info.filename || originalName;
+    let settled = false;
+    const done = (err?: any) => {
+      if (settled) return;
+      settled = true;
+      err ? reject(err) : resolve();
+    };
+
+    bb.on("file", (_name: string, file: any, info: any) => {
+      originalName = info?.filename || originalName;
       uploadedPath = path.join(tmpDir, `${Date.now()}_${originalName}`);
+
       const stream = fs.createWriteStream(uploadedPath);
       file.pipe(stream);
-      stream.on("close", resolve);
-      stream.on("error", reject);
+
+      // finish = terminó de escribir
+      stream.on("finish", () => done());
+      stream.on("error", (err: any) => done(err));
+      file.on("error", (err: any) => done(err));
     });
-    bb.on("error", (err: any) => reject(err));
+
+    bb.on("error", (err: any) => done(err));
 
     req.body?.pipeTo(
       new WritableStream({
-        write(chunk) { bb.write(chunk); },
-        close() { bb.end(); },
+        write(chunk: any) {
+          bb.write(chunk);
+        },
+        close() {
+          bb.end();
+        },
+        abort(reason: any) {
+          done(reason);
+        },
       })
-    );
+    ).catch((err: any) => done(err));
   });
 
   if (!uploadedPath) {
     return NextResponse.json({ error: "No llegó el PDF" }, { status: 400 });
   }
-let storeName: string | undefined = process.env.FILE_SEARCH_STORE_NAME;
 
-if (!storeName) {
-  const store = await ai.fileSearchStores.create({
-    config: { displayName: "camino-ucdm-store" },
-  });
+  // --- StoreName prolijo (sin !) ---
+  let storeName: string | undefined = process.env.FILE_SEARCH_STORE_NAME;
 
-  storeName = store.name ?? undefined;
-}
+  if (!storeName) {
+    const store = await ai.fileSearchStores.create({
+      config: { displayName: "camino-ucdm-store" },
+    });
+    storeName = store.name ?? undefined;
+  }
 
-if (!storeName) {
-  return NextResponse.json(
-    { error: "No pude crear/obtener FILE_SEARCH_STORE_NAME" },
-    { status: 500 }
-  );
-}
+  if (!storeName) {
+    try { fs.unlinkSync(uploadedPath); } catch {}
+    return NextResponse.json(
+      { error: "No pude crear/obtener FILE_SEARCH_STORE_NAME" },
+      { status: 500 }
+    );
+  }
 
+  // Ahora TS sabe que storeName es string
   let op = await ai.fileSearchStores.uploadToFileSearchStore({
     file: uploadedPath,
-    fileSearchStoreName: storeName!,
+    fileSearchStoreName: storeName,
     config: { displayName: originalName },
   });
 
