@@ -52,14 +52,22 @@ export async function POST(req: NextRequest) {
   if (!uploadedPath) {
     return NextResponse.json({ error: "No llegó el PDF" }, { status: 400 });
   }
+let storeName: string | undefined = process.env.FILE_SEARCH_STORE_NAME;
 
-  let storeName = process.env.FILE_SEARCH_STORE_NAME;
-  if (!storeName) {
-    const store = await ai.fileSearchStores.create({
-      config: { displayName: "camino-ucdm-store" },
-    });
-    storeName = store.name;
-  }
+if (!storeName) {
+  const store = await ai.fileSearchStores.create({
+    config: { displayName: "camino-ucdm-store" },
+  });
+
+  storeName = store.name ?? undefined;
+}
+
+if (!storeName) {
+  return NextResponse.json(
+    { error: "No pude crear/obtener FILE_SEARCH_STORE_NAME" },
+    { status: 500 }
+  );
+}
 
   let op = await ai.fileSearchStores.uploadToFileSearchStore({
     file: uploadedPath,
