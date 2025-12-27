@@ -71,7 +71,7 @@ if (!storeName) {
 
   let op = await ai.fileSearchStores.uploadToFileSearchStore({
     file: uploadedPath,
-    fileSearchStoreName: storeName,
+    fileSearchStoreName: storeName!,
     config: { displayName: originalName },
   });
 
