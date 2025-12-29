@@ -22,42 +22,28 @@ export async function POST(req: NextRequest) {
   }
 
   const { url } = (await req.json().catch(() => ({}))) as { url?: string };
-  if (!url) {
-    return NextResponse.json({ error: "Falta url" }, { status: 400 });
-  }
+  if (!url) return NextResponse.json({ error: "Falta url" }, { status: 400 });
 
-  // Descarga el PDF desde tu propio sitio (evita el payload grande)
   const res = await fetch(url);
   if (!res.ok) {
-    return NextResponse.json(
-      { error: "No pude descargar el PDF", status: res.status },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "No pude descargar el PDF", status: res.status }, { status: 400 });
   }
 
   const arrayBuffer = await res.arrayBuffer();
   const tmpDir = os.tmpdir();
   const filenameFromUrl = decodeURIComponent(url.split("/").pop() || "documento.pdf");
   const uploadedPath = path.join(tmpDir, `${Date.now()}_${filenameFromUrl}`);
-
   fs.writeFileSync(uploadedPath, Buffer.from(arrayBuffer));
 
   const ai = new GoogleGenAI({ apiKey });
 
   let storeName: string | undefined = process.env.FILE_SEARCH_STORE_NAME;
-
   if (!storeName) {
-    const store = await ai.fileSearchStores.create({
-      config: { displayName: "camino-ucdm-store" },
-    });
+    const store = await ai.fileSearchStores.create({ config: { displayName: "camino-ucdm-store" } });
     storeName = store.name ?? undefined;
   }
-
   if (!storeName) {
-    return NextResponse.json(
-      { error: "No pude crear/obtener FILE_SEARCH_STORE_NAME" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "No pude crear/obtener FILE_SEARCH_STORE_NAME" }, { status: 500 });
   }
 
   let op = await ai.fileSearchStores.uploadToFileSearchStore({
@@ -73,10 +59,5 @@ export async function POST(req: NextRequest) {
 
   try { fs.unlinkSync(uploadedPath); } catch {}
 
-  return NextResponse.json({
-    ok: true,
-    fileSearchStoreName: storeName,
-    message: "PDF indexado correctamente",
-    url,
-  });
+  return NextResponse.json({ ok: true, fileSearchStoreName: storeName, message: "PDF indexado correctamente", url });
 }
