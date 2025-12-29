@@ -27,6 +27,58 @@ export async function POST(req: NextRequest) {
 
   let uploadedPath: string | null = null;
   let originalName = "documento.pdf";
+// 🔹 Si viene JSON con URL, indexamos sin subir archivo
+const contentType = req.headers.get("content-type") || "";
+if (contentType.includes("application/json")) {
+  const auth = req.headers.get("authorization") || "";
+  if (auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "Falta GEMINI_API_KEY" }, { status: 500 });
+
+  const { url } = await req.json().catch(() => ({ url: "" }));
+  if (!url || typeof url !== "string") {
+    return NextResponse.json({ error: "Falta 'url' en el body" }, { status: 400 });
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  // storeName fijo (prolijo): ponelo en Vercel como env var
+  const storeName = process.env.FILE_SEARCH_STORE_NAME;
+  if (!storeName) {
+    return NextResponse.json(
+      { error: "Falta FILE_SEARCH_STORE_NAME en variables de entorno" },
+      { status: 500 }
+    );
+  }
+
+  // Descarga a /tmp y sube al store
+  const res = await fetch(url);
+  if (!res.ok) {
+    return NextResponse.json({ error: `No pude descargar el PDF: ${res.status}` }, { status: 400 });
+  }
+
+  const tmpPath = path.join(os.tmpdir(), `${Date.now()}_ucdm.pdf`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(tmpPath, buf);
+
+  let op = await ai.fileSearchStores.uploadToFileSearchStore({
+    file: tmpPath,
+    fileSearchStoreName: storeName,
+    config: { displayName: url.split("/").pop() || "ucdm.pdf" },
+  });
+
+  while (!op.done) {
+    await new Promise((r) => setTimeout(r, 3000));
+    op = await ai.operations.get({ operation: op });
+  }
+
+  try { fs.unlinkSync(tmpPath); } catch {}
+
+  return NextResponse.json({ ok: true, fileSearchStoreName: storeName, message: "PDF indexado por URL" });
+}
 
   const bb = Busboy({ headers: Object.fromEntries(req.headers) });
 
