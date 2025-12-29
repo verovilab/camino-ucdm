@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { GoogleGenAI } from "@google/genai";
 
 export const runtime = "nodejs";
 
+export async function GET() {
+  return NextResponse.json({ ok: true, route: "/api/index" });
+}
+
 export async function POST(req: NextRequest) {
-  // Auth
   const auth = req.headers.get("authorization") || "";
   if (auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -15,18 +21,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Falta GEMINI_API_KEY" }, { status: 500 });
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-
-  // Body: { url: "...", displayName?: "..." }
-  const body = await req.json().catch(() => null);
-  const url: string | undefined = body?.url;
-  const displayName: string = body?.displayName || "Documento";
-
-  if (!url || typeof url !== "string") {
+  const { url } = (await req.json().catch(() => ({}))) as { url?: string };
+  if (!url) {
     return NextResponse.json({ error: "Falta url" }, { status: 400 });
   }
 
-  // Store name (create if missing)
+  // Descarga el PDF desde tu propio sitio (evita el payload grande)
+  const res = await fetch(url);
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: "No pude descargar el PDF", status: res.status },
+      { status: 400 }
+    );
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const tmpDir = os.tmpdir();
+  const filenameFromUrl = decodeURIComponent(url.split("/").pop() || "documento.pdf");
+  const uploadedPath = path.join(tmpDir, `${Date.now()}_${filenameFromUrl}`);
+
+  fs.writeFileSync(uploadedPath, Buffer.from(arrayBuffer));
+
+  const ai = new GoogleGenAI({ apiKey });
+
   let storeName: string | undefined = process.env.FILE_SEARCH_STORE_NAME;
 
   if (!storeName) {
@@ -43,22 +60,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Upload by URL (no payload limits)
   let op = await ai.fileSearchStores.uploadToFileSearchStore({
-    file: url,
+    file: uploadedPath,
     fileSearchStoreName: storeName,
-    config: { displayName },
+    config: { displayName: filenameFromUrl },
   });
 
   while (!op.done) {
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 3000));
     op = await ai.operations.get({ operation: op });
   }
+
+  try { fs.unlinkSync(uploadedPath); } catch {}
 
   return NextResponse.json({
     ok: true,
     fileSearchStoreName: storeName,
-    indexedUrl: url,
-    displayName,
+    message: "PDF indexado correctamente",
+    url,
   });
 }
