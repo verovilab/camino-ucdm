@@ -3,6 +3,38 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
+import { NextRequest, NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+
+export async function POST(req: NextRequest) {
+  try {
+    const auth = req.headers.get("authorization") || "";
+    if (auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const body = await req.json().catch(() => null);
+    if (!body?.url) {
+      return NextResponse.json({ error: "Falta url en JSON" }, { status: 400 });
+    }
+
+    // 👇 ACÁ va tu lógica real de fetch + indexado
+    // Si falla algo, el catch de abajo te lo devuelve en JSON.
+
+    return NextResponse.json({ ok: true, receivedUrl: body.url });
+  } catch (e: any) {
+    return NextResponse.json(
+      {
+        error: "Crash en /api/index",
+        message: e?.message ?? String(e),
+        name: e?.name,
+        stack: e?.stack?.split("\n").slice(0, 8).join("\n"),
+      },
+      { status: 500 }
+    );
+  }
+}
 
 export const runtime = "nodejs";
 
