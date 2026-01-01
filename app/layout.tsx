@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ThemeToggle from "./components/ThemeToggle";
+export const metadata = {
+  title: "Camino UCDM",
+  description: "Un espacio de práctica y contemplación inspirado en Un Curso de Milagros",
+  icons: {
+    icon: "/favicon.png",
+  },
+};
 
 export const metadata: Metadata = {
   title: "Alumbrar — UCDM",
