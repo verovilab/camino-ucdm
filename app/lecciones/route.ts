@@ -12,8 +12,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Placeholder: acá después lo conectamos a tu “base del libro” (PDF/index)
-    // Por ahora devolvemos algo controlado para testear la UI.
+    // ✅ MODO PRUEBA (para ver la estética + flujo)
+    // Luego lo conectamos al contenido real del Libro de Ejercicios.
     return NextResponse.json({
       number,
       quote: `Lección ${number}: (frase de prueba)`,
