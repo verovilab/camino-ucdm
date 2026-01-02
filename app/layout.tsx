@@ -8,12 +8,6 @@ export const metadata = {
     icon: "/favicon.png",
   },
 };
-
-export const metadata: Metadata = {
-  title: "Alumbrar — UCDM",
-  description: "Un espacio de lectura, reflexión y práctica",
-};
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
